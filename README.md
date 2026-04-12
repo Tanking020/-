@@ -317,4 +317,265 @@ python SOR.py
 
 ---
 
-*持续更新中...*
+## 2026.04.12
+## 线性方程组迭代法求解：Jacobi、Gauss-Seidel 与 SOR 的完整实现
+
+**My Optimization Journey (我的优化算法学习之路)**
+
+研0预备役 | 数学优化方向 | 记录从零实现数值线性代数与优化算法
+
+---
+
+## 📚 学习进度
+
+| 算法 | 状态 | 核心收获 |
+|:---|:---:|:---|
+| Jacobi 迭代 | ✅ | 理解对角占优与收敛性 |
+| Gauss-Seidel 迭代 | ✅ | 利用最新分量加速收敛 |
+| SOR 超松弛迭代 | ✅ | 松弛因子 ω 的加权平均思想 |
+| 可视化对比 | ✅ | 收敛曲线 + 性能对比图表 |
+
+---
+
+## 📊 重点：图像与图表生成
+
+### 1. 收敛曲线图（两张）
+
+运行代码自动生成两张对比图，清晰展示三种方法的收敛速度差异。
+
+| 图片文件 | 坐标类型 | 特点 |
+|:---|:---|:---|
+| `convergence_linear.png` | 线性坐标 | 直观看到误差下降趋势 |
+| `convergence_log.png` | 半对数坐标 | Y轴对数刻度，指数收敛一目了然 |
+
+**生成效果**：
+```
+半对数坐标图（关键）：
+误差
+  │
+10⁰ ┤    ⚪───⚪ (Jacobi)
+  │   ⚪
+10⁻² ┤  ⚪
+  │  □───□ (Gauss-Seidel)
+10⁻⁴ ┤ □
+  │ △
+10⁻⁶ ┤△───△ (SOR)
+  │
+  └───────────────── 迭代次数
+      0    10    20    30    40
+```
+
+**核心代码**：
+```python
+plt.semilogy(errors_jacobi, 'o-', label='Jacobi')
+plt.semilogy(errors_gs, 's-', label='Gauss-Seidel')
+plt.semilogy(errors_sor, '^-', label='SOR (w=1.2)')
+plt.xlabel('迭代次数')
+plt.ylabel('误差（对数坐标）')
+plt.legend()
+plt.savefig('convergence_log.png', dpi=150)
+```
+
+### 2. 性能对比表格（控制台输出）
+
+```
+============================================================
+详细性能对比
+============================================================
+
+总耗时对比（秒）：
+----------------------------------------
+Jacobi         : 0.006228秒
+Gauss-Seidel   : 0.000782秒
+SOR(w=1.2)     : 0.001171秒
+
+========================================
+最快的是：Gauss-Seidel迭代法
+========================================
+
+迭代次数对比：
+Jacobi: 41 次
+Gauss-Seidel: 14 次
+SOR(w=1.2): 19 次
+```
+
+**表格对齐技巧**：
+```python
+print(f"{'Jacobi':15} : {time_j:.6f}秒")
+# 'Jacobi' 占15字符，左对齐
+```
+
+---
+
+## 🧠 重点：较难问题解析
+
+### 难点1：SOR 的加权平均公式为什么这样写？
+
+```python
+x_gs = (b[i] - sum1 - sum2) / A[i, i]  # Gauss-Seidel 值
+x[i] = w * x_gs + (1 - w) * x_old[i]   # 加权平均
+```
+
+**理解**：
+- `x_old[i]`：旧解（上一步的值）
+- `x_gs`：Gauss-Seidel 算出的新解
+- `w`：松弛因子，控制"跨步"大小
+  - `w = 1`：`x[i] = x_gs`（就是 GS）
+  - `w = 1.2`：`x[i] = 1.2*x_gs - 0.2*x_old[i]`（超松弛，跨过 GS 值）
+
+### 难点2：为什么 SOR 不一定比 GS 快？
+
+SOR 的收敛速度高度依赖 **ω 的选择**：
+
+```
+收敛速度
+    │
+    │        ╱╲
+    │       ╱  ╲
+    │      ╱    ╲
+    │     ╱      ╲
+    │    ╱        ╲
+    └──┴────┴────┴────┴──→ ω
+       1.0   1.2   1.5
+       GS    你选  发散
+```
+
+- ω 太小：欠松弛，收敛慢
+- ω 太大：过冲，可能发散
+- 最优 ω 通常在 1.0~1.5 之间，需要针对具体矩阵估算
+
+### 难点3：为什么用迭代增量（x_new - x_old）判断收敛？
+
+**原因**：真解 `x*` 不知道，无法计算真误差。
+
+| 可计算 | 不可计算 |
+|:---|:---|
+| `x_new - x_old`（迭代增量） | `x - x*`（真误差） |
+| `Ax - b`（残差） | - |
+
+**逻辑**：当迭代增量足够小时 → 解已稳定 → 可以认为接近真解。
+
+### 难点4：元组 + lambda 找出最快方法
+
+```python
+results = [("Jacobi", 0.006228), ("Gauss-Seidel", 0.000782), ("SOR", 0.001171)]
+fastest = min(results, key=lambda x: x[1])
+# key=lambda x: x[1] 表示：比较每个元组的第2项（耗时）
+# 返回：("Gauss-Seidel", 0.000782)
+```
+
+**为什么用元组？** 把名字和时间**绑定**在一起，排序后仍能知道哪个名字对应哪个时间。
+
+---
+
+## 📈 测试结果分析
+
+### 测试矩阵（严格对角占优）
+```
+A = [[5, 1, 2],
+     [1, 4, 1],
+     [2, 1, 6]]
+b = [10, 8, 16]
+精确解：x = [1, 1, 2]
+```
+
+### 关键发现
+| 方法 | 迭代次数 | 耗时 | 结论 |
+|:---|:---:|:---:|:---|
+| Jacobi | 41 | 最慢 | 需要全部旧值，收敛最慢 |
+| Gauss-Seidel | 14 | **最快** | 利用最新信息，加速明显 |
+| SOR(1.2) | 19 | 中等 | ω=1.2 不是最优值 |
+
+**对于此矩阵，Gauss-Seidel 已经是最优选择。**
+
+---
+
+## 🐛 重点 Debug 记录
+
+| 错误 | 原因 | 解决方案 |
+|:---|:---|:---|
+| 迭代次数显示1000 | 返回了 `max_iter` 而非 `k+1` | `return x_new, k+1, True, errors` |
+| SOR 和 GS 曲线重合 | 绘图时未传入 `w=1.2` | `SOR_with_history(A, b, w=1.2)` |
+| 字体警告 | matplotlib 默认字体无中文 | 设置中文字体 + `axes.unicode_minus=False` |
+| 性能对比重复输出 | 单独调用 + 绘图函数都运行 | 主程序只保留绘图函数 |
+
+---
+
+## 🚀 核心代码片段
+
+### 统一接口（三个函数返回值一致）
+```python
+def Jacobi_with_history(...):
+    return x, iterations, converged, errors
+
+def Gauss_Seidel_with_history(...):
+    return x, iterations, converged, errors
+
+def SOR_with_history(...):
+    return x, iterations, converged, errors
+```
+
+### 绘图函数核心
+```python
+def plot_convergence_comparison(A, b):
+    _, _, _, err_j = Jacobi_with_history(A, b, verbose=False)
+    _, _, _, err_gs = Gauss_Seidel_with_history(A, b, verbose=False)
+    _, _, _, err_sor = SOR_with_history(A, b, w=1.2, verbose=False)
+    
+    # 线性坐标
+    plt.plot(err_j, 'o-', label='Jacobi')
+    plt.plot(err_gs, 's-', label='Gauss-Seidel')
+    plt.plot(err_sor, '^-', label='SOR')
+    
+    # 半对数坐标
+    plt.semilogy(err_j, 'o-', label='Jacobi')
+    plt.semilogy(err_gs, 's-', label='Gauss-Seidel')
+    plt.semilogy(err_sor, '^-', label='SOR')
+```
+
+### 性能对比核心
+```python
+def compare_time_J_G_S(A, b, w=1.2):
+    results = []
+    
+    start = time.time()
+    _, iter_j, _, _ = Jacobi_with_history(A, b, verbose=False)
+    results.append(("Jacobi", time.time() - start))
+    
+    # ... GS 和 SOR 同理
+    
+    fastest = min(results, key=lambda x: x[1])
+    print(f"最快的是：{fastest[0]}迭代法")
+```
+
+---
+
+## 📁 生成的文件
+
+| 文件 | 内容 |
+|:---|:---|
+| `convergence_linear.png` | 线性坐标收敛曲线 |
+| `convergence_log.png` | 半对数坐标收敛曲线 |
+| 控制台输出 | 性能对比表格 + 迭代次数 |
+
+---
+
+## 💡 核心收获
+
+1. **可视化是关键**：一张半对数图胜过千行文字
+2. **统一接口设计**：三个函数返回值一致，便于对比
+3. **元组 + lambda**：优雅地找出最快方法
+4. **SOR 的 ω 需调优**：不是 ω>1 就一定快
+5. **迭代增量 vs 残差**：前者判断收敛，后者验证正确性
+
+---
+
+## 📋 后续计划
+
+- [ ] 实现共轭梯度法
+- [ ] SOR 最优 ω 自动估算
+- [ ] 大规模矩阵测试（100×100+）
+
+---
+
+*持续更新中...* 🚀
